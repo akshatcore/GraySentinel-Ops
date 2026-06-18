@@ -333,4 +333,4 @@ In practice, for a cybersecurity training context, the meaningful limit is for *
 
 *Report prepared by: Akshat Tiwari — MTS, Intelligence Command*  
 *GraySentinel Cyber Defence Lab — Operator Development Program, Day 1*  
-*Sources: cyberdefencelab.co.in (primary), github.com/graysentinel-ai (primary), general domain knowledge for Q9/Q12/Q13/Q14*
+*Sources: cyberdefencelab.co.in (primary), github.com/graysentinel-ai (primary)
