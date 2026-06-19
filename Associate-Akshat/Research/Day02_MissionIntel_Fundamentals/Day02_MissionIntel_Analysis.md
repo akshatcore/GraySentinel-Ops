@@ -260,8 +260,8 @@ echo "SQBFAFgA" | base64 -d
   - Process tree from actual execution
 
 ### Screenshots
-![HTA Analysis](Evidence/hta_analysis_screenshots/hta_analysis_commands.png)
-![Base64 Decode](Evidence/hta_analysis_screenshots/hta_base64_decode.png)
+![HTA Analysis](Research/Evidence/hta_analysis_screenshots/hta_analysis_commands.png)
+![Base64 Decode](Research/Evidence/hta_analysis_screenshots/hta_base64_decode.png)
 
 ---
 
