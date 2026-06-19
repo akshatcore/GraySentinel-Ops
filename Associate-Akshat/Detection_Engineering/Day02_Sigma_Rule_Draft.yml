@@ -1,0 +1,32 @@
+title: HTA File Spawning PowerShell or WScript
+id: 7f3e1c2a-4b6d-4a9e-9c1f-2d8a5e6b7c10
+status: experimental
+description: |
+  Detects mshta.exe (HTML Application host) spawning powershell.exe or wscript.exe
+  as a child process. This pattern is commonly associated with HTA-based malicious
+  document delivery, often used in initial-access phishing campaigns to execute
+  obfuscated scripts while evading static file-based detection.
+references:
+  - https://attack.mitre.org/techniques/T1218/005/
+  - https://github.com/SigmaHQ/sigma
+author: Akshat (GraySentinel ODP - Intelligence Command)
+date: 2026-06-19
+tags:
+  - attack.execution
+  - attack.t1218.005
+  - attack.defense_evasion
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_parent:
+    ParentImage|endswith: '\mshta.exe'
+  selection_child:
+    Image|endswith:
+      - '\powershell.exe'
+      - '\wscript.exe'
+  condition: selection_parent and selection_child
+falsepositives:
+  - Legitimate administrative scripts that intentionally chain mshta.exe to
+    powershell.exe or wscript.exe (rare in standard enterprise environments)
+level: high
