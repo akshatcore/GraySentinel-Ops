@@ -225,4 +225,44 @@ Without items 1–3, the claim should stay at "Unconfirmed / Needs Validation" s
 
 ---
 
+## HTA Analysis — Kali Linux Investigation
+
+### File Created
+```bash
+echo '<html><head><script language="VBScript">Set objShell = CreateObject("WScript.Shell") objShell.Run "powershell.exe -enc SQBFAFgA"</script></head></html>' > suspicious.hta
+```
+
+### File Inspection
+- **`file suspicious.hta`** → HTML document, ASCII text
+
+### Strings Analysis
+- Found: `CreateObject("WScript.Shell")`
+- Found: `powershell.exe -enc SQBFAFgA`
+- VBScript executing PowerShell with encoded command
+
+### XXD Hex Analysis
+- ASCII readable — not packed/obfuscated
+- Base64 encoded payload detected: `SQBFAFgA`
+
+### Base64 Decode
+```bash
+echo "SQBFAFgA" | base64 -d
+# Output: IEX
+```
+- **IEX = Invoke-Expression** — classic malware technique
+- Downloads and executes remote payloads without writing to disk
+
+### Verdict on VirusTotal (3/70)
+- **REJECTED** — insufficient evidence
+- Additional evidence required:
+  - Dynamic sandbox analysis (Any.Run)
+  - Network capture during execution
+  - Process tree from actual execution
+
+### Screenshots
+![HTA Analysis](Evidence/hta_analysis_screenshots/hta_analysis_commands.png)
+![Base64 Decode](Evidence/hta_analysis_screenshots/hta_base64_decode.png)
+
+---
+
 *End of Day 02 Mission Intel Analysis.*
