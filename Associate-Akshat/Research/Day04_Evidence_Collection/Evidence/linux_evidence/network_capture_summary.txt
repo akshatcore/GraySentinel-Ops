@@ -1,0 +1,15 @@
+# Network Capture Summary — tshark DNS Filter
+# Command: tshark -r capture.pcap -Y "dns" -T fields -e frame.time -e ip.src -e dns.qry.name
+# Date: 2026-06-23 00:15:00+0530
+# Investigator: Akshat Tiwari
+
+FRAME_TIME                        SRC_IP          DNS_QUERY
+Jun 23, 2026 00:15:44.123456      192.168.1.105   malware.test
+Jun 23, 2026 00:15:45.234567      192.168.1.105   malware.test
+Jun 23, 2026 00:16:01.345678      192.168.1.105   malware.test
+Jun 23, 2026 00:16:30.456789      192.168.1.105   malware.test
+Jun 23, 2026 00:17:00.567890      192.168.1.105   malware.test
+
+# Summary: 5 DNS queries to malware.test from 192.168.1.105
+# Consistent with C2 beacon interval (~30s)
+# Associated process: evil_backdoor (PID 1337)

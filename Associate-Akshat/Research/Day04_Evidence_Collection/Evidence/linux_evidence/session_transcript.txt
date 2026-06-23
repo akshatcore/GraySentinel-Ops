@@ -1,0 +1,40 @@
+Script started on 2026-06-23 00:15:00+0530
+=== Investigation Start ===
+Investigator: Akshat Tiwari
+Date/Time: 2026-06-23T00:15:00+05:30
+Hostname: kali
+System: Linux kali 6.6.9-amd64 #1 SMP PREEMPT_DYNAMIC Kali 6.6.9-1kali1 (2024-01-08) x86_64 GNU/Linux
+
+[akshat@kali ~]$ ps aux | tee processes.txt
+USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root         1  0.0  0.1  22540  9856 ?        Ss   00:01   0:01 /sbin/init
+root      1337  0.0  0.1   4532  1024 ?        S    00:15   0:00 /tmp/.hidden/evil_backdoor
+...
+
+[akshat@kali ~]$ ss -tulpn | tee network_connections.txt
+Netid  State   Recv-Q  Send-Q  Local Address:Port   Peer Address:Port  Process
+tcp    ESTAB   0       0       192.168.1.105:54321  203.0.113.42:4444  users:(("evil_backdoor",pid=1337,fd=3))
+
+[akshat@kali ~]$ lsof -p 1337 | tee open_files_pid1337.txt
+COMMAND        PID  USER  FD   TYPE DEVICE SIZE/OFF NODE NAME
+evil_backdoor 1337  root  cwd  DIR   8,1     4096   2    /tmp/.hidden
+evil_backdoor 1337  root  txt  REG   8,1    81920   99   /tmp/.hidden/evil_backdoor
+evil_backdoor 1337  root  3u   IPv4  12345        0t0  TCP 192.168.1.105:54321->203.0.113.42:4444 (ESTABLISHED)
+
+[akshat@kali ~]$ stat /tmp/.hidden/backdoor.log
+  File: /tmp/.hidden/backdoor.log
+  Size: 2048            Blocks: 8          IO Block: 4096   regular file
+Device: 801h/2049d      Inode: 131073      Links: 1
+Access: 2026-06-23 00:15:33.000000000 +0530
+Modify: 2026-06-23 00:17:44.000000000 +0530
+Change: 2026-06-23 00:17:44.000000000 +0530
+
+[akshat@kali ~]$ tshark -r capture.pcap -Y "dns" -T fields -e frame.time -e ip.src -e dns.qry.name | tee network_capture_summary.txt
+Jun 23, 2026 00:15:44  192.168.1.105  malware.test
+Jun 23, 2026 00:15:45  192.168.1.105  malware.test
+Jun 23, 2026 00:16:01  192.168.1.105  malware.test
+
+[akshat@kali ~]$ sha256sum * | tee hash_list.txt
+
+=== Investigation End: 2026-06-23T00:45:00+05:30 ===
+Script done on 2026-06-23 00:45:01+0530

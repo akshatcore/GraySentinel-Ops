@@ -1,0 +1,3 @@
+TimeCreated,EventId,ProcessId,CommandLine,ParentImage,DestinationIp,DestinationPort
+2026-06-23 01:05:22,1,4892,"powershell.exe -ExecutionPolicy Bypass -Command Invoke-WebRequest -Uri http://example.com/test.txt -OutFile C:\Temp\test.txt",C:\Windows\System32\cmd.exe,,
+2026-06-23 01:05:23,3,4892,,,93.184.216.34,80
