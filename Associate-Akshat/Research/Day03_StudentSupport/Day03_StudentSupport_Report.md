@@ -266,20 +266,21 @@ After observing the group for Day 03, here are actionable suggestions:
 ### Error Reproduction
 
 **Command that produces the error:**
+
 ```bash
 nmap -sS 192.168.1.1
 ```
 
-**Error output (reproduced on Kali VM):**
+**Error output (referenced from Nmap documentation):**
+
 ```
 Failed to open interface eth0. Error: Operation not permitted (1)
-```
-or
-```
 NSOCK ERROR [0.0400s] mksock_bind_connect(): Failed to open interface "eth0"
 ```
 
-*(See: Evidence/nmap_error_reproduction.png)*
+> **Note:** Kali Linux default environment grants elevated privileges to the primary user.
+> Error was referenced from official Nmap documentation as direct reproduction was not
+> possible in the current VM configuration.
 
 ---
 
@@ -312,49 +313,57 @@ In VirtualBox or VMware, if the network adapter is set to the wrong mode (e.g., 
 
 ---
 
-### Troubleshooting Guide (Markdown – for Group Posting)
+### Troubleshooting Guide for Group Posting
 
-```markdown
-## Nmap Error: "Failed to Open Interface" – Quick Fix Guide
+**Nmap Error: "Failed to Open Interface" – Quick Fix Guide**
 
 **Error:** `Failed to open interface eth0. Error: Operation not permitted`
 
-### Step 1: Check if you're running as root
+**Step 1: Check if you're running as root**
+
 ```bash
 whoami
 sudo nmap -sS <target_ip>
 ```
+
 Most raw-packet scans require sudo. Try this first.
 
-### Step 2: Verify your interface is up
+**Step 2: Verify your interface is up**
+
 ```bash
 ip a
 ip link show
 ```
+
 Look for `state UP` and an assigned IP. If the interface is DOWN:
+
 ```bash
 sudo ip link set eth0 up
 sudo dhclient eth0
 ```
 
-### Step 3: Check VM network adapter settings
+**Step 3: Check VM network adapter settings**
+
 - **VirtualBox:** Settings → Network → Adapter 1 → Attached to: Bridged or NAT
 - **VMware:** VM Settings → Network Adapter → Connection type
 
 Use **NAT** if you want internet access. Use **Bridged** to be on the same subnet as your host.
 
-### Step 4: Specify the interface manually
+**Step 4: Specify the interface manually**
+
 ```bash
 sudo nmap -e eth0 -sS <target_ip>
 ```
+
 This forces nmap to use eth0 explicitly.
 
-### Step 5: Run a ping test first
+**Step 5: Run a ping test first**
+
 ```bash
 ping -c 4 8.8.8.8
 ```
+
 If ping fails, the issue is network-level, not nmap-specific.
-```
 
 ---
 
