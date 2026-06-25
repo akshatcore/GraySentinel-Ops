@@ -1,0 +1,192 @@
+# Day 05 — Excellence Challenge
+# PowerShell Automated Windows Triage Script
+# Imports Sysmon .evtx, extracts process creation (EID 1) and network events (EID 3),
+# exports a unified CSV timeline sorted by timestamp.
+#
+# Usage:
+#   .\Day05_AutoTriage.ps1 -EvtxPath "C:\path\to\Sysmon.evtx" -OutputPath "C:\triage\timeline.csv"
+#
+# Requires: PowerShell 5.1+, read access to the .evtx file
+# Author: Akshat | GraySentinel Intelligence Command | ODP Day 05 | 2026-06-25
+
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$EvtxPath,
+
+    [Parameter(Mandatory=$false)]
+    [string]$OutputPath = ".\Day05_Triage_Timeline.csv",
+
+    [Parameter(Mandatory=$false)]
+    [int]$HoursBack = 24
+)
+
+$ErrorActionPreference = "Stop"
+$timeline = [System.Collections.Generic.List[PSCustomObject]]::new()
+
+Write-Host "[*] GraySentinel Auto-Triage | Day 05" -ForegroundColor Cyan
+Write-Host "[*] Source  : $EvtxPath"
+Write-Host "[*] Output  : $OutputPath"
+Write-Host "[*] Window  : Last $HoursBack hours"
+Write-Host ""
+
+# Validate input
+if (-not (Test-Path $EvtxPath)) {
+    Write-Error "[-] EVTX file not found: $EvtxPath"
+    exit 1
+}
+
+$cutoff = (Get-Date).AddHours(-$HoursBack)
+
+# --- FUNCTION: Parse Sysmon Event ID 1 (Process Creation) ---
+function Get-ProcessCreationEvents {
+    param([string]$Path, [datetime]$Since)
+
+    Write-Host "[*] Extracting Event ID 1 (Process Creation)..." -ForegroundColor Yellow
+
+    $query = @"
+<QueryList>
+  <Query Id="0">
+    <Select Path="file://$Path">*[System[EventID=1]]</Select>
+  </Query>
+</QueryList>
+"@
+
+    try {
+        $events = Get-WinEvent -FilterXml $query -ErrorAction SilentlyContinue |
+                  Where-Object { $_.TimeCreated -ge $Since }
+
+        foreach ($evt in $events) {
+            $xml = [xml]$evt.ToXml()
+            $data = $xml.Event.EventData.Data
+
+            $entry = [PSCustomObject]@{
+                Timestamp    = $evt.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss.fff")
+                EventID      = 1
+                EventType    = "ProcessCreation"
+                ProcessName  = ($data | Where-Object {$_.Name -eq 'Image'}).'#text'
+                CommandLine  = ($data | Where-Object {$_.Name -eq 'CommandLine'}).'#text'
+                ParentImage  = ($data | Where-Object {$_.Name -eq 'ParentImage'}).'#text'
+                ParentCmdLine= ($data | Where-Object {$_.Name -eq 'ParentCommandLine'}).'#text'
+                PID          = ($data | Where-Object {$_.Name -eq 'ProcessId'}).'#text'
+                PPID         = ($data | Where-Object {$_.Name -eq 'ParentProcessId'}).'#text'
+                User         = ($data | Where-Object {$_.Name -eq 'User'}).'#text'
+                Hashes       = ($data | Where-Object {$_.Name -eq 'Hashes'}).'#text'
+                DestIP       = ""
+                DestPort     = ""
+                SourceIP     = ""
+                SourcePort   = ""
+                Protocol     = ""
+            }
+            $timeline.Add($entry)
+        }
+        Write-Host "[+] Found $($events.Count) process creation event(s)." -ForegroundColor Green
+    }
+    catch {
+        Write-Warning "[-] Could not parse EID 1: $_"
+    }
+}
+
+# --- FUNCTION: Parse Sysmon Event ID 3 (Network Connection) ---
+function Get-NetworkConnectionEvents {
+    param([string]$Path, [datetime]$Since)
+
+    Write-Host "[*] Extracting Event ID 3 (Network Connection)..." -ForegroundColor Yellow
+
+    $query = @"
+<QueryList>
+  <Query Id="0">
+    <Select Path="file://$Path">*[System[EventID=3]]</Select>
+  </Query>
+</QueryList>
+"@
+
+    try {
+        $events = Get-WinEvent -FilterXml $query -ErrorAction SilentlyContinue |
+                  Where-Object { $_.TimeCreated -ge $Since }
+
+        foreach ($evt in $events) {
+            $xml = [xml]$evt.ToXml()
+            $data = $xml.Event.EventData.Data
+
+            $entry = [PSCustomObject]@{
+                Timestamp    = $evt.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss.fff")
+                EventID      = 3
+                EventType    = "NetworkConnection"
+                ProcessName  = ($data | Where-Object {$_.Name -eq 'Image'}).'#text'
+                CommandLine  = ""
+                ParentImage  = ""
+                ParentCmdLine= ""
+                PID          = ($data | Where-Object {$_.Name -eq 'ProcessId'}).'#text'
+                PPID         = ""
+                User         = ($data | Where-Object {$_.Name -eq 'User'}).'#text'
+                Hashes       = ""
+                DestIP       = ($data | Where-Object {$_.Name -eq 'DestinationIp'}).'#text'
+                DestPort     = ($data | Where-Object {$_.Name -eq 'DestinationPort'}).'#text'
+                SourceIP     = ($data | Where-Object {$_.Name -eq 'SourceIp'}).'#text'
+                SourcePort   = ($data | Where-Object {$_.Name -eq 'SourcePort'}).'#text'
+                Protocol     = ($data | Where-Object {$_.Name -eq 'Protocol'}).'#text'
+            }
+            $timeline.Add($entry)
+        }
+        Write-Host "[+] Found $($events.Count) network connection event(s)." -ForegroundColor Green
+    }
+    catch {
+        Write-Warning "[-] Could not parse EID 3: $_"
+    }
+}
+
+# --- MAIN ---
+Get-ProcessCreationEvents -Path $EvtxPath -Since $cutoff
+Get-NetworkConnectionEvents -Path $EvtxPath -Since $cutoff
+
+if ($timeline.Count -eq 0) {
+    Write-Warning "[-] No events found in the specified time window."
+    exit 0
+}
+
+# Sort chronologically
+$sorted = $timeline | Sort-Object Timestamp
+
+# Export
+$sorted | Export-Csv -Path $OutputPath -NoTypeInformation -Encoding UTF8
+Write-Host ""
+Write-Host "[+] Timeline exported: $OutputPath ($($sorted.Count) total events)" -ForegroundColor Green
+
+# Summary stats
+$procCount = ($sorted | Where-Object {$_.EventID -eq 1}).Count
+$netCount  = ($sorted | Where-Object {$_.EventID -eq 3}).Count
+$suspPS    = ($sorted | Where-Object {$_.CommandLine -like '*-enc*' -or $_.CommandLine -like '*hidden*' -or $_.CommandLine -like '*bypass*'}).Count
+
+Write-Host ""
+Write-Host "=== QUICK STATS ===" -ForegroundColor Cyan
+Write-Host "  Process Creation Events : $procCount"
+Write-Host "  Network Connection Events: $netCount"
+Write-Host "  Suspicious PS flags (-enc/-hidden/-bypass): $suspPS" -ForegroundColor $(if ($suspPS -gt 0) {"Red"} else {"Green"})
+
+# Flag high-value findings
+if ($suspPS -gt 0) {
+    Write-Host ""
+    Write-Host "[!] SUSPICIOUS POWERSHELL DETECTED:" -ForegroundColor Red
+    $sorted | Where-Object {$_.CommandLine -like '*-enc*' -or $_.CommandLine -like '*hidden*' -or $_.CommandLine -like '*bypass*'} |
+        Select-Object Timestamp, ProcessName, CommandLine | Format-List
+}
+
+# Unique destination IPs
+$destIPs = ($sorted | Where-Object {$_.DestIP -ne ""} | Select-Object -ExpandProperty DestIP -Unique)
+if ($destIPs) {
+    Write-Host "[*] Unique Destination IPs:" -ForegroundColor Yellow
+    $destIPs | ForEach-Object { Write-Host "    $_" }
+}
+
+Write-Host ""
+Write-Host "[*] Triage complete. Review $OutputPath for full timeline." -ForegroundColor Cyan
+
+<#
+SAMPLE OUTPUT (CSV columns):
+Timestamp, EventID, EventType, ProcessName, CommandLine, ParentImage, ParentCmdLine,
+PID, PPID, User, Hashes, DestIP, DestPort, SourceIP, SourcePort, Protocol
+
+Example rows:
+2026-06-25 09:22:14.112, 1, ProcessCreation, powershell.exe, "powershell.exe -enc cABvAH...", explorer.exe, "", 4812, 3044, DESKTOP-5TMNK2L\akshat, SHA256=..., , , , ,
+2026-06-25 09:22:16.334, 3, NetworkConnection, powershell.exe, "", "", "", 4812, "", DESKTOP-5TMNK2L\akshat, "", 93.184.216.34, 80, 192.168.1.14, 49831, tcp
+#>

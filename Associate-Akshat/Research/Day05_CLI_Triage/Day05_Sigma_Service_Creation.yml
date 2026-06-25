@@ -1,0 +1,107 @@
+title: Suspicious Service Created from Non-Standard Path with Unusual Name
+id: a3f1c2e4-88b7-4d91-b3c2-9e7f501a4d88
+status: experimental
+description: >
+  Detects creation of a Windows service with a name matching a random/unusual pattern
+  or whose binary path resides outside standard system directories. Covers both
+  Sysmon Event ID 7045 (service install) and Sysmon Event ID 13 (Registry Set Value)
+  targeting the Services registry key.
+references:
+  - https://attack.mitre.org/techniques/T1543/003/
+  - https://docs.microsoft.com/en-us/sysinternals/downloads/sysmon
+author: Akshat | GraySentinel Intelligence Command
+date: 2026-06-25
+tags:
+  - attack.persistence
+  - attack.privilege_escalation
+  - attack.t1543.003
+  - attack.t1574.011
+
+logsource:
+  product: windows
+  service: system
+
+detection:
+  # Branch 1: Windows System Event Log — Service Control Manager (Event ID 7045)
+  service_install:
+    EventID: 7045
+    ServiceFileName|contains:
+      - '\AppData\'
+      - '\Temp\'
+      - '\ProgramData\'
+      - '\Users\Public\'
+      - '\Downloads\'
+      - 'C:\Windows\Temp\'
+    ServiceFileName|endswith:
+      - '.exe'
+      - '.bat'
+      - '.ps1'
+      - '.vbs'
+      - '.cmd'
+
+  # Branch 2: Random/gibberish service name heuristic
+  random_service_name:
+    EventID: 7045
+    ServiceName|re: '^[a-zA-Z0-9]{8,20}$'     # 8-20 alphanumeric chars, no spaces/meaningful words
+
+  # Branch 3: Sysmon Registry Event ID 13 — ServiceDLL or ImagePath set under Services key
+  registry_service_set:
+    EventID: 13
+    TargetObject|contains: '\SYSTEM\CurrentControlSet\Services\'
+    TargetObject|endswith:
+      - '\ImagePath'
+      - '\ServiceDll'
+    Details|contains:
+      - '\AppData\'
+      - '\Temp\'
+      - '\ProgramData\'
+      - '\Users\Public\'
+
+  condition: service_install or random_service_name or registry_service_set
+
+  # Reduce false positives — known legitimate patterns
+  filter_legit:
+    ServiceName:
+      - 'wuauserv'
+      - 'BITS'
+      - 'MpsSvc'
+      - 'W32Time'
+      - 'Spooler'
+    ServiceFileName|startswith:
+      - 'C:\Windows\System32\'
+      - 'C:\Windows\SysWOW64\'
+      - 'C:\Program Files\'
+      - 'C:\Program Files (x86)\'
+
+falsepositives:
+  - Legitimate software installers that place binaries in non-standard locations
+  - System administration tools deployed to temp paths during automated provisioning
+  - Penetration testing frameworks (Metasploit, Cobalt Strike) in authorized red team engagements
+
+level: high
+
+fields:
+  - ServiceName
+  - ServiceFileName
+  - ServiceType
+  - StartType
+  - AccountName
+  - TargetObject
+  - Details
+
+---
+# Detection Engineering Notes
+#
+# Test Case 1 — Trigger service_install branch:
+#   sc create EvilSvc binPath="C:\Users\Public\svc.exe" start=auto
+#   Expected: Alert on ServiceFileName containing \Users\Public\
+#
+# Test Case 2 — Trigger random_service_name branch:
+#   sc create xK9mQ3rT binPath="C:\Windows\System32\svchost.exe -k netsvcs" start=auto
+#   Expected: Alert on ServiceName matching random regex
+#
+# Test Case 3 — Trigger registry_service_set (Sysmon EID 13):
+#   Reg add HKLM\SYSTEM\CurrentControlSet\Services\TestSvc /v ImagePath /d "C:\AppData\r.exe"
+#   Expected: Alert on TargetObject + Details pattern
+#
+# Validate with: Chainsaw, Sigma CLI (sigma convert), or SIEM rule test mode
